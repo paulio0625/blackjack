@@ -107,7 +107,6 @@ function redraw()
     mon.setBackgroundColor(colors.green)
     mon.setTextColor(colors.white)
     mon.clear()
-    drawButtons()
     local spacing = x/2 - (#dealerHand*2-2)
     --Draw dealer's Hand
     -- print("Drawing dealer's hand")
@@ -144,7 +143,7 @@ function dealHouse(hide)
     dealerHand[#dealerHand+1] = deck[#deck]
     if hide then
         -- print("Hiding Card")
-        dealerHand[#dealerHand] = {"flipped"}
+        dealerHand[#dealerHand] = {"flipped", deck[#deck]}
     else
         -- print("Showing Card")
     end
@@ -209,6 +208,16 @@ end
 
 function standPlay()
     -- print("Checking dealerHand")
+
+    -- print(#dealerHand)
+    for i=1, #dealerHand do
+        if dealerHand[i][1] == "flipped" then
+            -- print(dealerHand[i][2])
+            dealerHand[i][1] = dealerHand[i][2][1]
+            dealerHand[i][2] = dealerHand[i][2][2]
+        end
+    end
+
     local dealerValue, soft = getHandValue(dealerHand)
 
     if dealerValue == 17 and soft then
@@ -253,7 +262,7 @@ playAgain.set("func", playHand)
 
 function playHand()
     -- print("Starting new hand")
-    --empties the dealer and player hands
+    --Empties the dealer and player hands
     playerHand = {}
     dealerHand = {}
 
@@ -261,9 +270,11 @@ function playHand()
     local playerBust = false
     local continue = false
     local hidden = false
+    local dealerBust = false
+    local blackJack = false
 
+    -- Deals cards out to the player and the house
     while #playerHand < 2 do
-        -- Deals cards out to the player and the house
         sleep(0.25)
         dealPlayer()
         redraw()
@@ -273,6 +284,17 @@ function playHand()
         hidden = true
     end
 
+    drawButtons()
+
+    if getHandValue(playerHand) == 21 then
+        continue = true
+        blackJack = true
+        stand.get("func")
+        redraw()
+        drawButtons()
+    end
+
+    --Until the player busts or stands
     repeat
         local event = {os.pullEvent()}
     
@@ -284,6 +306,7 @@ function playHand()
                 hit.toggle(mon)
                 hit.get("func")()
                 redraw()
+                drawButtons()
                 local playerValue = getHandValue(playerHand)
 
                 if playerValue > 21 then
@@ -295,6 +318,7 @@ function playHand()
                 repeat
                     continue = stand.get("func")()
                     redraw()
+                    drawButtons()
                     sleep(0.25)
                 until continue
                 -- print("Continuing Play")
@@ -302,10 +326,20 @@ function playHand()
         end
     until playerBust or continue
 
+    local old = term.redirect(mon)
+    paintutils.drawFilledBox(1, y/2-2, x, y/2+2, colors.blue)
+    term.redirect(old)
+
+    if getHandValue(dealerHand) > 21 then
+        dealerBust = true
+    end
+
     if playerBust then
         center("Bust!")
     else
-        if getHandValue(playerHand) > getHandValue(dealerHand) then
+        if blackJack then
+            center("Blackjack!")
+        elseif getHandValue(playerHand) > getHandValue(dealerHand) or dealerBust then
             center("You win!")
         elseif getHandValue(playerHand) == getHandValue(dealerHand) then
             center("You Push")
@@ -313,15 +347,19 @@ function playHand()
             center("You Lose!")
         end
     end
-    sleep(1)
+    sleep(3)
 end
 
 shuffle()
 
+local play = true
 --Run
 while true do
-    --Begins the hand
-    playHand()
+    if play then
+        --Begins the hand
+        playHand()
+        play = false
+    end
 
     --Clears the monitor
     resetMon()
@@ -336,6 +374,9 @@ while true do
             quit.get("func")()
         elseif playAgain.clicked(event[3], event[4]) then
             playAgain.toggle(mon)
+            play = true
+        else
+            play = false
         end
     end
 end
