@@ -5,18 +5,22 @@ local mon = peripheral.find("monitor")
 local dis = peripheral.find("drive")
 
 local x, y = mon.getSize()
+
 local playerHand = {}
 local dealerHand = {}
 local deck = {}
+
 local  bet = 1
 local playerMoney = 0
 
+local buttons = {}
+
 local cards = {
     {"A", "\3"}, {"A", "\4"}, {"A", "\5"}, {"A", "\6"},
-    {"K", "\3"}, {"K", "\4"}, {"K", "\5"}, {"K", "\6"},
-    {"Q", "\3"}, {"Q", "\4"}, {"Q", "\5"}, {"Q", "\6"},
-    {"J", "\3"}, {"J", "\4"}, {"J", "\5"}, {"J", "\6"},
-    {"10","\3"}, {"10","\4"}, {"10","\5"}, {"10","\6"},
+    {"K", "\3", "split"}, {"K", "\4", "split"}, {"K", "\5", "split"}, {"K", "\6", "split"},
+    {"Q", "\3", "split"}, {"Q", "\4", "split"}, {"Q", "\5", "split"}, {"Q", "\6", "split"},
+    {"J", "\3", "split"}, {"J", "\4", "split"}, {"J", "\5", "split"}, {"J", "\6", "split"},
+    {"10","\3", "split"}, {"10","\4", "split"}, {"10","\5", "split"}, {"10","\6", "split"},
     {"9", "\3"}, {"9", "\4"}, {"9", "\5"}, {"9", "\6"},
     {"8", "\3"}, {"8", "\4"}, {"8", "\5"}, {"8", "\6"},
     {"7", "\3"}, {"7", "\4"}, {"7", "\5"}, {"7", "\6"},
@@ -33,10 +37,60 @@ function resetMon()
     mon.clear()
 end
 
---exits the current process
-function quitGame()
-    error()
+function center(str, offset)
+    offset = offset or 0
+    local posX = math.ceil(x/2)-math.floor(#str/2)
+    local posY = math.ceil(y/2)
+    
+    mon.setCursorPos(posX, posY + offset)
+    mon.write(str)
 end
+
+--Yes/No Buttons
+local yes = button.Button()
+yes.set("label", "Yes")
+yes.set("posX", math.ceil(x/2) - 2)
+yes.set("posY", math.ceil(y/2) + 2)
+
+local no = button.Button()
+no.set("label", "No")
+no.set("posX", math.ceil(x/2) + 2)
+no.set("posY", math.ceil(y/2) + 2)
+
+--quit function
+function quitGame()    
+    resetMon()
+    --prompt for if player is sure
+    center("Are you sure?", -8)
+    center("If you have confirmed a bet", -7)
+    center("you will lose the money", -6)
+
+    yes.draw(mon)
+    no.draw(mon)
+
+    local event = {os.pullEvent()}
+    
+    if event[1] == "monitor_touch" then
+        --if yes go to quit the game
+        if yes.clicked(event[3], event[4]) then
+            yes.toggle(mon)
+            error()
+        --if no continue game
+        elseif no.clicked(event[3], event[4]) then
+            no.toggle(mon)
+            return
+        end
+    end
+end
+
+--Quit button
+local quit = button.Button()
+quit.set("label", "Quit")
+quit.set("func", quitGame)
+quit.set("posY", math.floor(y*0.97))
+quit.set("posX", math.ceil(x*0.95))
+quit.set("height", 3)
+quit.set("width", 6)
 
 --adds the value given to the bet
 function addBet(betValue)
@@ -47,15 +101,7 @@ function addBet(betValue)
     end
 end
 
---create buttons
-local quit = button.Button()
-quit.set("label", "Quit")
-quit.set("func", quitGame)
-quit.set("posY", math.floor(y*0.97))
-quit.set("posX", math.ceil(x*0.95))
-quit.set("height", 3)
-quit.set("width", 6)
-
+--Add/Subtract Money buttons
 local plusOne = button.Button()
 plusOne.set("label", "+1")
 plusOne.set("func", addBet)
@@ -96,15 +142,6 @@ local confirm = button.Button()
 confirm.set("label", "Confirm?")
 confirm.set("posX", math.ceil(x/2))
 confirm.set("posY", math.floor(y*0.85))
-
-function center(str)
-    
-    local posX = math.ceil(x/2)-math.floor(#str/2)
-    local posY = math.ceil(y/2)
-    
-    mon.setCursorPos(posX, posY)
-    mon.write(str)
-end
 
 --If no card inserted ask for payment card
 function checkCard()
@@ -176,6 +213,7 @@ function placeBet()
                 else
                     checkCard()
                     dis.setDiskLabel("$"..playerMoney-bet)
+                    playerMoney = playerMoney - bet
                    return 
                 end
             --If money button increment or decrement the players bet
@@ -202,28 +240,486 @@ function placeBet()
 
     until false
 end
---begin a hand
---deal cards to player and to dealer
-    --check to see if the player has a blackjack
---Prompt for stand, hit, double, split if available or quit
---if stand check dealers hand to see value
-    --Move to stand function
---if hit deal player another card and check to see if they have bust
-    --if not bust then check against the dealer's hand to see who wins
---if double then double the players bet and give one last card
-    --Move to the stand function
---if the player has 2 of the same value card offer split
-    --on split seperate into 2 hands of the same value bet
-    --run through one hand after the other
-    --re-prompt the same buttons for each hand
---If quit go to quit function
 
---Stand Function
-    --if dealer hand value is less then hard 17 or has soft 17 then take more cards until either bust or above 17
+--if the player stands
+function standPlay(blackjack)
+    --reveal the flipped cards
+    for i=1, #dealerHand do
+        if dealerHand[i][1] == "flipped" then
+            dealerHand[i][1] = dealerHand[i][2][1]
+            dealerHand[i][2] = dealerHand[i][2][2]
+        end
+    end
 
---quit function
-    --prompt for if player is sure
-        --if yes go to quit function
-        --if no continue game
+    local dealerValue, soft = getHandValue(dealerHand)
 
-placeBet()
+    if blackjack and dealerValue == 21 then
+        return 1
+    elseif dealerValue == 17 and soft then
+        dealHouse()
+    elseif dealerValue < 17 then
+        dealHouse()
+    end
+end
+
+function doublePlay()
+    --Make sure the player has enough money to double
+    if (bet + bet) > playerMoney then
+        resetMon()
+        center("Not enough money!")
+        sleep(2)
+        return false
+    else
+        --check to make sure card is still in slot
+        checkCard()
+
+        --adjust the players card total
+        dis.setDiskLabel("$"..playerMoney-bet)
+        playerMoney = playerMoney - bet
+        return true
+    end
+end
+
+function printCard(card, x, y)
+    mon.setCursorPos(x, y)
+    
+    --if the card is a heart or diamond
+    if card[2] == "\3" or card[2] == "\4" then
+        mon.setBackgroundColor(colors.white)
+        mon.setTextColor(colors.red)
+    else
+        mon.setBackgroundColor(colors.white)
+        mon.setTextColor(colors.black)
+    end
+    
+    --if the card is a flipped card
+    if card[1] == "flipped" then
+        mon.setBackgroundColor(colors.red)
+        mon.setTextColor(colors.white)
+        
+        mon.write("+-+")
+        mon.setCursorPos(x, y+1)
+        mon.write("|*|")
+        mon.setCursorPos(x, y+2)
+        mon.write("+-+")
+    --if the card is a 10
+    elseif card[1] == "10" then
+        mon.write("10 ")
+        mon.setCursorPos(x, y+1)
+        mon.write(" " .. card[2] .. " ")
+        mon.setCursorPos(x, y+2)
+        mon.write(" 10")
+    else
+        mon.write(card[1].."  ")
+        mon.setCursorPos(x, y+1)
+        mon.write(" "..card[2].." ")
+        mon.setCursorPos(x, y+2)
+        mon.write("  "..card[1])
+    end
+end
+
+function redraw()
+    resetMon()
+
+    --Add spacing to the card
+    local spacing = (math.ceil(x/2) - #dealerHand*2) + 1
+
+    --for all cards in the dealerHand
+    for i=1, #dealerHand do
+        --get the card from the dealerHand
+        local card = dealerHand[i]
+
+        --draw the card
+        printCard(card, spacing, math.floor(y*0.3))
+
+        --add more spacing for the next card
+        spacing = spacing + 4
+    end
+
+    --reset spacing for new hand
+    spacing = (math.ceil(x/2) - #playerHand*2) + 1
+
+    --for all cards in the playerHand
+    for i=1, #playerHand do
+        --get the card from the playerHand
+        local card = playerHand[i]
+
+        --draw the card
+        printCard(card, spacing, math.floor(y*0.6))
+
+        --add more spacing for the next card
+        spacing = spacing + 4
+    end
+
+    --Draw deck in the center of the board
+    printCard({"flipped"}, x/2, y*0.45)
+end
+
+function splitPlay()
+    local tempDealerHand = dealerHand
+    local splitCard = playerHand[2]
+    local splitBet = bet
+    playerHand[2] = nil
+
+    playHand(playerHand, dealerHand)
+
+    bet = splitBet
+    playerHand = {}
+    playerHand[1] = splitCard
+
+    redraw()
+    
+    playHand(playerHand, tempDealerHand)
+end
+
+function drawButtons()
+    for i, but in pairs(buttons) do
+        but.draw(mon)
+    end
+end
+
+function shuffle()
+    resetMon()
+    center("Shuffling Deck...")
+    
+    for i, card in pairs(cards) do
+        repeat
+            pos = math.random(1,52)
+        until deck[pos] == nil
+        deck[pos] = card
+        
+        sleep(0)
+    end
+    
+    mon.clear()
+    center("Done!")
+    sleep(1)
+    mon.clear()
+end
+
+function getHandValue(hand)
+    local handValue = 0;
+    local numAces = 0;
+    local soft = false;
+
+    for i, v in pairs(hand) do
+        if v[1] == "2" then
+            handValue = handValue +2
+        elseif v[1] == "3" then
+            handValue = handValue +3
+        elseif v[1] == "4" then
+            handValue = handValue +4
+        elseif v[1] == "5" then
+            handValue = handValue +5
+        elseif v[1] == "6" then
+            handValue = handValue +6
+        elseif v[1] == "7" then
+            handValue = handValue +7
+        elseif v[1] == "8" then
+            handValue = handValue +8
+        elseif v[1] == "9" then
+            handValue = handValue +9
+        elseif v[1] == "10" then
+            handValue = handValue +10
+        elseif v[1] == "J" then
+            handValue = handValue +10
+        elseif v[1] == "Q" then
+            handValue = handValue +10
+        elseif v[1] == "K" then
+            handValue = handValue +10
+        elseif v[1] == "A" then
+            handValue = handValue +11
+            numAces = numAces +1
+        end
+
+        repeat
+            if handValue > 21 and numAces > 0 then
+                numAces = numAces - 1
+                handValue = handValue - 10
+            end
+        until numAces <= 0 or handValue <= 21
+
+        if handValue == 17 and numAces > 0 then
+            soft = true;
+        end
+    end
+
+    return handValue, soft
+end
+
+--adds cards to the player's hand
+function dealPlayer()
+    playerHand[#playerHand+1] = deck[#deck]
+    deck[#deck] = nil
+end
+
+--deals cards to dealer's hand
+function dealHouse(hide)
+    dealerHand[#dealerHand+1] = deck[#deck]
+
+    --If card is hidden set primary value to flipped and second value to the card
+    if hide then
+        dealerHand[#dealerHand] = {"flipped", deck[#deck]}
+    end
+
+    deck[#deck] = nil
+end
+
+local hit = button.Button()
+hit.set("label", "Hit")
+hit.set("func", dealPlayer)
+hit.set("posY", math.floor(y*0.85))
+hit.set("posX", math.ceil(x*0.20))
+
+local stand = button.Button()
+stand.set("label", "Stand")
+stand.set("posY", math.floor(y*0.85))
+stand.set("posX", math.ceil(x*0.40))
+stand.set("func", standPlay)
+
+local double = button.Button()
+double.set("label", "Double")
+double.set("posY", math.floor(y*0.85))
+double.set("posX", math.ceil(x*0.60))
+double.set("func", doublePlay)
+
+local split = button.Button()
+split.set("label", "Split")
+split.set("posY", math.floor(y*0.85))
+split.set("posX", math.ceil(x*0.80))
+split.set("func", splitPlay)
+split.set("active", false)
+
+table.insert(buttons, hit)
+table.insert(buttons, stand)
+table.insert(buttons, double)
+table.insert(buttons, split)
+table.insert(buttons, quit)
+
+function playHand(player, dealer)
+    --Empty the dealerHand and playerHand
+    if not player then
+        playerHand = {}
+        dealerHand = {}
+    else
+        playerHand = player
+        dealerHand = dealer
+    end
+
+    --Create local variables
+    local playerBust = false
+    local dealerBust = false
+    local blackjack = false
+    local dealerjack = false
+    local doubleBet = false
+
+    local hidden = false
+
+    --Deal to player and dealer
+    while #playerHand < 2 do
+        if #dealerHand < 2 then
+            sleep(0.25)
+            dealHouse(hidden)
+            redraw()
+        end
+        sleep(0.25)
+        dealPlayer()
+        redraw()
+        hidden = true
+    end
+
+    if playerHand[1][1] == playerHand[2][1] then
+        split.set("active", true)
+        split.set("colorNormal", colors.blue)
+    elseif playerHand[1][3] and playerHand[2][3] then
+        split.set("active", true)
+        split.set("colorNormal", colors.blue)
+    else
+        split.set("active", false)
+        split.set("colorNormal", colors.gray)
+    end
+    --draw the gameplay buttons
+    drawButtons()
+
+    --Check for a blackjack
+    if getHandValue(playerHand) == 21 then
+        blackjack = true
+
+        --go to stand function
+        if stand.get("func")(blackjack) == 1 then
+            dealerjack = true
+        end
+        redraw()
+    end
+
+    --continue the game while not standing or bust
+    while true and not blackjack do
+        local event = {os.pullEvent()}
+
+        if event[1] == "monitor_touch" then
+            --if quit go to quit function
+            if quit.clicked(event[3], event[4]) then
+                quit.toggle(mon)
+                quit.get("func")()
+                redraw()
+                drawButtons()
+            --if hit deal the player a new card
+            elseif hit.clicked(event[3], event[4]) then
+                hit.toggle(mon)
+                hit.get("func")()
+
+                redraw()
+                drawButtons()
+
+                --get the playerHand value
+                local playerValue = getHandValue(playerHand)
+
+                --make sure player hasn't bust
+                if playerValue > 21 then
+                    playerBust = true
+                    break
+                end
+            --if stand go to the stand function and set continue to true
+            elseif stand.clicked(event[3], event[4]) then
+                stand.toggle(mon)
+
+                while getHandValue(dealerHand) < 17 do
+                    stand.get("func")(blackjack)
+                    redraw()
+                    sleep(0.25)
+                end
+                break
+            --go to double function
+            elseif double.clicked(event[3], event[4]) then
+                double.toggle(mon)
+                doubleBet = double.get("func")()
+
+                if doubleBet then
+                    --deal the player one more card
+                    dealPlayer()
+                    redraw()
+
+                    --check playerHand value
+                    local playerValue = getHandValue(playerHand)
+
+                    --make sure player hasn't bust
+                    if playerValue > 21 then
+                        playerBust = true
+                        break
+                    end
+
+                    --player stands
+                    while getHandValue(dealerHand) < 17 do
+                        stand.get("func")(blackjack)
+                        redraw()
+                        sleep(0.25)
+                    end
+                    break
+                else
+                    redraw()
+                    drawButtons()
+                end
+            --go to split function
+            elseif split.clicked(event[3], event[4]) then
+                if split.get("active") then
+                    split.toggle(mon)
+                    split.get("func")()
+                    break
+                end
+            end
+        end
+    end
+
+    --prep to draw the results
+    local old = term.redirect(mon)
+    paintutils.drawFilledBox(1, y/2-2, x, y/2+2, colors.blue)
+    term.redirect(old)
+
+    --check for dealer bust
+    if getHandValue(dealerHand) > 21 then
+        dealerBust = true
+    end
+
+    --check player bust
+    if playerBust then
+        center("Bust!")
+    --print the results
+    elseif dealerjack or getHandValue(playerHand) == getHandValue(dealerHand) then
+        center("You Push")
+        if doubleBet then
+            playerMoney = playerMoney + bet * 2
+        else
+            playerMoney = playerMoney + bet 
+        end
+    elseif blackjack then
+        center("Blackjack!")
+        playerMoney = playerMoney + math.floor(bet*2.5)
+    elseif dealerBust then
+        center("Dealer Bust!")
+        if doubleBet then
+            playerMoney = playerMoney + bet * 4
+        else
+            playerMoney = playerMoney + bet * 2
+        end
+    elseif getHandValue(playerHand) > getHandValue(dealerHand) then
+        center("You win!")
+        if doubleBet then
+            playerMoney = playerMoney + bet * 4
+        else
+            playerMoney = playerMoney + bet * 2
+        end
+    else
+        center("You Lose!")
+    end
+    dis.setDiskLabel("$"..playerMoney)
+    bet = 1
+    sleep(3)
+end
+
+function startGame()
+    --Ask the player to place their bet
+    placeBet()
+
+    if #deck < 12 then
+        deck = {}
+        --shuffle the deck
+        shuffle()
+    end
+
+    --begin a hand
+    playHand()
+end
+
+startGame()
+
+local playAgain = button.Button()
+playAgain.set("label", "Play again")
+playAgain.set("func", startGame)
+playAgain.set("posY", math.floor(y/2) - 1)
+
+local notNow = button.Button()
+notNow.set("label", "Not right now")
+notNow.set("posY", math.floor(y/2) + 1)
+
+while true do
+    resetMon()
+
+    --ask to play again
+    center("Play again?", -4)
+    playAgain.draw(mon)
+    notNow.draw(mon)
+
+    local event = {os.pullEvent()}
+
+    if event[1] == "monitor_touch" then
+        if playAgain.clicked(event[3], event[4]) then
+            playAgain.toggle(mon)
+            playAgain.get("func")()
+        elseif notNow.clicked(event[3], event[4]) then
+            notNow.toggle(mon)
+            break
+        end
+    end
+end
+
+return
