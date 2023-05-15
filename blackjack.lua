@@ -412,7 +412,7 @@ local function placeBet()
     local labelString = dis.getDiskLabel()
 
     --converts the amount to a number
-    playerMoney = tonumber(string.match(labelString, "%d+"))
+    playerMoney = tonumber(string.match(labelString, "%d+"), 10)
 
     resetMon()
 
