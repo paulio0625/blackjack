@@ -150,6 +150,26 @@ quit.set("posX", math.ceil(x*0.95))
 quit.set("height", 3)
 quit.set("width", 6)
 
+checkCard()
+
+resetMon()
+
+if dis.getDiskID() == 0 then
+    center("Hello Paul")
+elseif dis.getDiskID() == 1 then
+    center("Hello Mystic")
+elseif dis.getDiskID() == 2 then
+    center("Hello Lorb")
+elseif dis.getDiskID() == 3 then
+    center("Hello Waffles")
+elseif dis.getDiskID() == 4 then
+    center("Hello Micro")
+end
+
+sleep(2)
+
+resetMon()
+
 while true do
     resetMon()
 
@@ -159,24 +179,6 @@ while true do
 
     local label = dis.getDiskLabel()
     cardValue = tonumber(string.match(label, "%d+"), 10)
-
-    resetMon()
-
-    if dis.getDiskID() == 0 then
-        center("Hello Paul")
-    elseif dis.getDiskID() == 1 then
-        center("Hello Mystic")
-    elseif dis.getDiskID() == 2 then
-        center("Hello Lorb")
-    elseif dis.getDiskID() == 3 then
-        center("Hello Waffles")
-    elseif dis.getDiskID() == 4 then
-        center("Hello Micro")
-    end
-
-    sleep(2)
-
-    resetMon()
 
     center("How much would you like to", -8)
     center("withdraw?", -7)
